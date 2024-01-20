@@ -39,22 +39,28 @@ extension View {
   ///   - attachmentAnchor: The positioning anchor that defines the
   ///     attachment point of the popup. The default is
   ///     ``Anchor/Source/bounds``.
-  ///   - edgeAlignment: The edge of the `attachmentAnchor` that defines the
-  ///     location and alignment of the popup. The default is ``EdgeAlignment/top``.
+  ///   - attachmentEdge: The edge of the `attachmentAnchor` that defines
+  ///     the location of the popover. The default is ``Edge/top``.
+  ///   - alignment: The alignment that the modifier uses to position the
+  ///     implicit popup relative to the `attachmentAnchor`. The default
+  ///     is ``Alignment/center``.
   ///   - edgeOffset: The distance of the poppver from the `attachmentEdge`.
   ///   - content: A closure returning the content of the popup.
   public func popup<Item: Identifiable, Content: View>(
     item: Binding<Item?>,
     attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds),
-    edgeAlignment: EdgeAlignment = .top(),
+    attachmentEdge: Edge = .top,
     edgeOffset: CGFloat = 12,
+    alignment: Alignment = .top,
     @ViewBuilder content: @escaping (Item) -> Content
   ) -> some View {
     self.modifier(
       PopupViewModifier(
         item: item,
-        edgeAlignment: edgeAlignment,
+        attachmentAnchor: attachmentAnchor,
+        attachmentEdge: attachmentEdge,
         edgeOffset: edgeOffset,
+        alignment: alignment,
         content: content
       )
     )
@@ -64,8 +70,9 @@ extension View {
 struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
   var item: Binding<Item?>
   let attachmentAnchor: PopoverAttachmentAnchor
-  let edgeAlignment: EdgeAlignment
+  let attachmentEdge: Edge
   let edgeOffset: CGFloat
+  let alignment: Alignment
   @ViewBuilder let overlayContent: (Item) -> PopupContent
 
   @State var anchorValue: CGRect? = nil
@@ -74,15 +81,17 @@ struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
 
   init(
     item: Binding<Item?>,
-    attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds),
-    edgeAlignment: EdgeAlignment,
+    attachmentAnchor: PopoverAttachmentAnchor,
+    attachmentEdge: Edge,
     edgeOffset: CGFloat,
+    alignment: Alignment,
     @ViewBuilder content: @escaping (Item) -> PopupContent
   ) {
     self.item = item
     self.attachmentAnchor = attachmentAnchor
-    self.edgeAlignment = edgeAlignment
+    self.attachmentEdge = attachmentEdge
     self.edgeOffset = edgeOffset
+    self.alignment = alignment
     self.overlayContent = content
   }
 
@@ -130,56 +139,35 @@ struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
   func getPointInView(unitPoint: UnitPoint) -> CGPoint { unitPoint * self.contentFrame.size }
 
   var anchorAttachmentEdgeMultiplier: CGSize {
-    switch self.edgeAlignment {
+    switch self.attachmentEdge {
     case .top: CGSize(width: 0.5, height: 0)
     case .bottom: CGSize(width: 0.5, height: 1)
     case .leading: CGSize(width: 0, height: 0.5)
     case .trailing: CGSize(width: 1, height: 0.5)
-    case .center: CGSize(width: 0, height: 0)
     }
   }
 
   var offsetAttachmentEdgeMultiplier: CGSize {
-    switch self.edgeAlignment {
-    case .top(.leading): CGSize(width: -1, height: -1)
-    case .top(.trailing): CGSize(width: 1, height: -1)
+    switch self.alignment {
+    case .topLeading: CGSize(width: -1, height: -1)
     case .top: CGSize(width: 0, height: -1)
-    case .bottom(.leading): CGSize(width: -1, height: 1)
-    case .bottom(.trailing): CGSize(width: 1, height: 1)
+    case .topTrailing: CGSize(width: 1, height: -1)
+    case .bottomLeading: CGSize(width: -1, height: 1)
     case .bottom: CGSize(width: 0, height: 1)
-    case .leading(.top): CGSize(width: -1, height: -1)
-    case .leading(.bottom): CGSize(width: -1, height: 1)
+    case .bottomTrailing: CGSize(width: 1, height: 1)
     case .leading: CGSize(width: -1, height: 0)
-    case .trailing(.top): CGSize(width: 1, height: -1)
-    case .trailing(.bottom): CGSize(width: 1, height: 1)
     case .trailing: CGSize(width: 1, height: 0)
-    case .center(.top): CGSize(width: 0, height: -1)
-    case .center(.bottom): CGSize(width: 0, height: 1)
-    case .center(.leading): CGSize(width: -1, height: 0)
-    case .center(.trailing): CGSize(width: 1, height: 0)
-    case .center(.topLeading): CGSize(width: -1, height: -1)
-    case .center(.topTrailing): CGSize(width: 1, height: -1)
-    case .center(.bottomLeading): CGSize(width: -1, height: 1)
-    case .center(.bottomTrailing): CGSize(width: 1, height: 1)
-    case .center: CGSize(width: 0, height: 0)
+    case .center: CGSize.zero
+    default: CGSize.zero
     }
   }
 
   var overlayEdgeOffset: CGSize {
-    switch self.edgeAlignment {
+    switch self.attachmentEdge {
     case .top: CGSize(width: 0, height: -self.edgeOffset)
     case .bottom: CGSize(width: 0, height: self.edgeOffset)
     case .leading: CGSize(width: -self.edgeOffset, height: 0)
     case .trailing: CGSize(width: self.edgeOffset, height: 0)
-    case .center: CGSize(width: 0, height: 0)
     }
   }
-}
-
-public enum EdgeAlignment {
-  case center(alignment: Alignment = .center)
-  case top(alignment: HorizontalAlignment = .center)
-  case bottom(alignment: HorizontalAlignment = .center)
-  case leading(alignment: VerticalAlignment = .center)
-  case trailing(alignment: VerticalAlignment = .center)
 }
