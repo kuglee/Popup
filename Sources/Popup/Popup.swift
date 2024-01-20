@@ -45,6 +45,8 @@ extension View {
   ///     implicit popup relative to the `attachmentAnchor`. When
   ///    `alignment` is nil, the value gets derived from the `attachmentEdge`.
   ///   - edgeOffset: The distance of the poppver from the `attachmentEdge`.
+  ///   - tapOutsideToDismiss: Whether the popup should be dismissed when a
+  ///     tap occurs outside the view.
   ///   - content: A closure returning the content of the popup.
   public func popup<Item: Identifiable, Content: View>(
     item: Binding<Item?>,
@@ -52,6 +54,7 @@ extension View {
     attachmentEdge: Edge = .top,
     edgeOffset: CGFloat = 12,
     alignment: Alignment? = nil,
+    tapOutsideToDismiss: Bool = true,
     @ViewBuilder content: @escaping (Item) -> Content
   ) -> some View {
     self.modifier(
@@ -61,6 +64,7 @@ extension View {
         attachmentEdge: attachmentEdge,
         edgeOffset: edgeOffset,
         alignment: alignment,
+        tapOutsideToDismiss: tapOutsideToDismiss,
         content: content
       )
     )
@@ -73,6 +77,7 @@ struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
   let attachmentEdge: Edge
   let edgeOffset: CGFloat
   let alignment: Alignment?
+  let tapOutsideToDismiss: Bool
   @ViewBuilder let overlayContent: (Item) -> PopupContent
 
   @State var anchorValue: CGRect? = nil
@@ -85,6 +90,7 @@ struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
     attachmentEdge: Edge,
     edgeOffset: CGFloat,
     alignment: Alignment?,
+    tapOutsideToDismiss: Bool,
     @ViewBuilder content: @escaping (Item) -> PopupContent
   ) {
     self.item = item
@@ -92,6 +98,7 @@ struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
     self.attachmentEdge = attachmentEdge
     self.edgeOffset = edgeOffset
     self.alignment = alignment
+    self.tapOutsideToDismiss = tapOutsideToDismiss
     self.overlayContent = content
   }
 
@@ -101,7 +108,13 @@ struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
         self.item.wrappedValue.map { itemValue in
           Group {
             self.overlayContent(itemValue).contentShape(.rect).fixedSize()
-              .onTapOutsideGesture { self.item.wrappedValue = nil }
+              .applying {
+                if self.tapOutsideToDismiss {
+                  $0.onTapOutsideGesture { self.item.wrappedValue = nil }
+                } else {
+                  $0
+                }
+              }
               .onGeometryFrameChange { self.overlayFrame = $0 }.position(self.overlayPosition)
               .offset(self.overlayOffset)
             Button("") { self.item.wrappedValue = nil }.keyboardShortcut(.escape, modifiers: [])
