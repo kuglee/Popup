@@ -81,6 +81,7 @@ struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
   @ViewBuilder let overlayContent: (Item) -> PopupContent
 
   @State var anchorValue: CGRect? = nil
+  @State var overlayAnchorValue: CGRect? = nil
   @State var contentFrame: CGRect = .zero
   @State var overlayFrame: CGRect = .zero
 
@@ -109,6 +110,13 @@ struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
           Group {
             self.overlayContent(itemValue).contentShape(.rect).fixedSize()
               .applying {
+                if case let .rect(source) = self.attachmentAnchor {
+                  $0.anchorReader(anchor: source) { self.overlayAnchorValue = $0 }
+                } else {
+                  $0
+                }
+              }
+              .applying {
                 if self.tapOutsideToDismiss {
                   $0.onTapOutsideGesture { self.item.wrappedValue = nil }
                 } else {
@@ -134,9 +142,12 @@ struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
   var overlayPosition: CGPoint {
     switch self.attachmentAnchor {
     case .rect:
-      if let anchorValue {
-        anchorValue.origin + anchorValue.size * self.anchorAttachmentEdgeMultiplier
-          - self.overlayFrame.size
+      if let anchorValue, let overlayAnchorValue {
+        // FIXME: anchorValue.origin has a wierd offset that changes with padding
+        // and such, using overlayAnchorValue.origin instead that has the correct origin
+        //
+        // FIXME: the first value is wrong if self.item.wrappedValue starts out nonnil
+        overlayAnchorValue.origin + self.anchorAttachmentEdgeMultiplier * anchorValue.size
       } else {
         .zero
       }
@@ -151,12 +162,12 @@ struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
 
   func getPointInView(unitPoint: UnitPoint) -> CGPoint { unitPoint * self.contentFrame.size }
 
-  var anchorAttachmentEdgeMultiplier: CGSize {
+  var anchorAttachmentEdgeMultiplier: UnitPoint {
     switch self.attachmentEdge {
-    case .top: CGSize(width: 0.5, height: 0)
-    case .bottom: CGSize(width: 0.5, height: 1)
-    case .leading: CGSize(width: 0, height: 0.5)
-    case .trailing: CGSize(width: 1, height: 0.5)
+    case .top: .top
+    case .bottom: .bottom
+    case .leading: .leading
+    case .trailing: .trailing
     }
   }
 

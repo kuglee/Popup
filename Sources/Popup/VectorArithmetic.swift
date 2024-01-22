@@ -14,6 +14,10 @@ extension UnitPoint {
   static func * (_ lhs: Self, _ rhs: CGSize) -> CGPoint {
     CGPoint(x: lhs.x * rhs.width, y: lhs.y * rhs.height)
   }
+
+  static func * (_ lhs: Self, _ rhs: CGSize) -> CGSize {
+    CGSize(width: lhs.x * rhs.width, height: lhs.y * rhs.height)
+  }
 }
 
 extension CGSize {
