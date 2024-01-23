@@ -38,7 +38,7 @@ extension View {
   ///     popup and replaces it with a new popup using the same process.
   ///   - attachmentAnchor: The positioning anchor that defines the
   ///     attachment point of the popup. The default is
-  ///     ``Anchor/Source/bounds``.
+  ///     ``PopupAttachmentAnchor/Source/bounds``.
   ///   - attachmentEdge: The edge of the `attachmentAnchor` that defines
   ///     the location of the popover. The default is ``Edge/top``.
   ///   - alignment: The alignment that the modifier uses to position the
@@ -50,7 +50,7 @@ extension View {
   ///   - content: A closure returning the content of the popup.
   public func popup<Item: Identifiable, Content: View>(
     item: Binding<Item?>,
-    attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds),
+    attachmentAnchor: PopupAttachmentAnchor = .rect(.bounds),
     attachmentEdge: Edge = .top,
     edgeOffset: CGFloat = 12,
     alignment: Alignment? = nil,
@@ -73,21 +73,19 @@ extension View {
 
 struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
   var item: Binding<Item?>
-  let attachmentAnchor: PopoverAttachmentAnchor
+  let attachmentAnchor: PopupAttachmentAnchor
   let attachmentEdge: Edge
   let edgeOffset: CGFloat
   let alignment: Alignment?
   let tapOutsideToDismiss: Bool
   @ViewBuilder let overlayContent: (Item) -> PopupContent
 
-  @State var anchorValue: CGRect? = nil
-  @State var overlayAnchorValue: CGRect? = nil
-  @State var contentFrame: CGRect = .zero
-  @State var overlayFrame: CGRect = .zero
+  @State var contentSize: CGSize = .zero
+  @State var overlaySize: CGSize = .zero
 
   init(
     item: Binding<Item?>,
-    attachmentAnchor: PopoverAttachmentAnchor,
+    attachmentAnchor: PopupAttachmentAnchor,
     attachmentEdge: Edge,
     edgeOffset: CGFloat,
     alignment: Alignment?,
@@ -104,18 +102,11 @@ struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
   }
 
   func body(content: Content) -> some View {
-    content.onGeometryFrameChange { self.contentFrame = $0 }
+    content.onGeometrySizeChange { self.contentSize = $0 }
       .overlay {
         self.item.wrappedValue.map { itemValue in
           Group {
             self.overlayContent(itemValue).contentShape(.rect).fixedSize()
-              .applying {
-                if case let .rect(source) = self.attachmentAnchor {
-                  $0.anchorReader(anchor: source) { self.overlayAnchorValue = $0 }
-                } else {
-                  $0
-                }
-              }
               .applying {
                 if self.tapOutsideToDismiss {
                   $0.onTapOutsideGesture { self.item.wrappedValue = nil }
@@ -123,44 +114,28 @@ struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
                   $0
                 }
               }
-              .onGeometryFrameChange { self.overlayFrame = $0 }.position(self.overlayPosition)
+              .onGeometrySizeChange { self.overlaySize = $0 }.position(self.overlayPosition)
               .offset(self.overlayOffset)
             Button("") { self.item.wrappedValue = nil }.keyboardShortcut(.escape, modifiers: [])
               .hidden().accessibility(hidden: true).keyboardShortcut("h", modifiers: [])
           }
         }
       }
-      .applying {
-        if case let .rect(source) = self.attachmentAnchor {
-          $0.anchorReader(anchor: source) { self.anchorValue = $0 }
-        } else {
-          $0
-        }
-      }
   }
 
   var overlayPosition: CGPoint {
     switch self.attachmentAnchor {
-    case .rect:
-      if let anchorValue, let overlayAnchorValue {
-        // FIXME: anchorValue.origin has a wierd offset that changes with padding
-        // and such, using overlayAnchorValue.origin instead that has the correct origin
-        //
-        // FIXME: the first value is wrong if self.item.wrappedValue starts out nonnil
-        overlayAnchorValue.origin + self.anchorAttachmentEdgeMultiplier * anchorValue.size
-      } else {
-        .zero
-      }
+    case let .rect(.rect(rect)): rect.origin + self.anchorAttachmentEdgeMultiplier * rect.size
+    case .rect(.bounds): CGPoint.zero + self.anchorAttachmentEdgeMultiplier * self.contentSize
     case let .point(unitPoint): self.getPointInView(unitPoint: unitPoint)
-    @unknown default: .zero
     }
   }
 
   var overlayOffset: CGSize {
-    self.overlayFrame.size / 2 * self.offsetAttachmentEdgeMultiplier + self.overlayEdgeOffset
+    self.overlaySize / 2 * self.offsetAttachmentEdgeMultiplier + self.overlayEdgeOffset
   }
 
-  func getPointInView(unitPoint: UnitPoint) -> CGPoint { unitPoint * self.contentFrame.size }
+  func getPointInView(unitPoint: UnitPoint) -> CGPoint { unitPoint * self.contentSize }
 
   var anchorAttachmentEdgeMultiplier: UnitPoint {
     switch self.attachmentEdge {

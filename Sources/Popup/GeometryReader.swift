@@ -1,30 +1,13 @@
 import SwiftUI
 
 extension View {
-  @MainActor func geomertyReader(perform action: @escaping (GeometryProxy) -> Void)
-    -> some View
-  { GeometryReader { geometry in Color.clear.onAppear { action(geometry) } } }
-
-  // from https://stackoverflow.com/a/66822461/14351818
-  @MainActor func onGeometryFrameChange(
-    in coordinateSpace: CoordinateSpace = .global,
-    perform action: @escaping (CGRect) -> Void
-  ) -> some View {
+  func onGeometrySizeChange(perform action: @escaping (CGSize) -> Void) -> some View {
     self.background(
       GeometryReader {
-        let frame = $0.frame(in: coordinateSpace)
+        let size = $0.frame(in: .global).size
 
-        Color.clear.preference(key: ContentFrameReaderPreferenceKey.self, value: frame)
-          .onPreferenceChange(ContentFrameReaderPreferenceKey.self) { action($0) }
+        Color.clear.task(id: size) { @MainActor [size] in action(size) }
       }
     )
   }
-}
-
-struct ContentFrameReaderPreferenceKey: PreferenceKey {
-  typealias Value = CGRect
-
-  static var defaultValue: Value = Value()
-
-  static func reduce(value: inout Value, nextValue: () -> Value) { value = nextValue() }
 }
