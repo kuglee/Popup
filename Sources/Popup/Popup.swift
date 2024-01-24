@@ -69,7 +69,74 @@ extension View {
       )
     )
   }
+
+  /// Presents a popup using the given item as a data source for the
+  /// popup's content.
+  ///
+  /// Use this method when you need to present a popup with content
+  /// from a custom data source. The example below uses data in
+  /// the `PopupModel` structure to populate the view in the `content`
+  /// closure that the popup displays to the user:
+  ///
+  ///     struct PopoverExample: View {
+  ///         @State private var isShowingPopover = false
+  ///
+  ///         var body: some View {
+  ///             Button("Show Popover") {
+  ///                 self.isShowingPopover = true
+  ///             }
+  ///             .popover(isPresented: $isShowingPopover) {
+  ///                 Text("Popover Content")
+  ///                     .padding()
+  ///             }
+  ///         }
+  ///     }
+  ///
+  /// - Parameters:
+  ///   - isPresented: A binding to a Boolean value that determines whether
+  ///     to present the popover content that you return from the modifier's
+  ///     `content` closure.
+  ///   - attachmentAnchor: The positioning anchor that defines the
+  ///     attachment point of the popup. The default is
+  ///     ``PopupAttachmentAnchor/Source/bounds``.
+  ///   - attachmentEdge: The edge of the `attachmentAnchor` that defines
+  ///     the location of the popover. The default is ``Edge/top``.
+  ///   - alignment: The alignment that the modifier uses to position the
+  ///     implicit popup relative to the `attachmentAnchor`. When
+  ///    `alignment` is nil, the value gets derived from the `attachmentEdge`.
+  ///   - edgeOffset: The distance of the poppver from the `attachmentEdge`.
+  ///   - tapOutsideToDismiss: Whether the popup should be dismissed when a
+  ///     tap occurs outside the view.
+  ///   - content: A closure returning the content of the popup.
+  public func popup<Content: View>(
+    isPresented: Binding<Bool>,
+    attachmentAnchor: PopupAttachmentAnchor = .rect(.bounds),
+    attachmentEdge: Edge = .top,
+    edgeOffset: CGFloat = 12,
+    alignment: Alignment? = nil,
+    tapOutsideToDismiss: Bool = true,
+    @ViewBuilder content: @escaping () -> Content
+  ) -> some View {
+    self.modifier(
+      PopupViewModifier(
+        item: .init(
+          get: { if isPresented.wrappedValue { AnyIdentifiable() } else { nil } },
+          set: { newValue, transaction in
+            withTransaction(transaction) { isPresented.wrappedValue = newValue != nil }
+          }
+        ),
+        attachmentAnchor: attachmentAnchor,
+        attachmentEdge: attachmentEdge,
+        edgeOffset: edgeOffset,
+        alignment: alignment,
+        tapOutsideToDismiss: tapOutsideToDismiss,
+        content: { _ in content() }
+      )
+    )
+  }
 }
+
+struct AnyIdentifiable: Identifiable { let id = UUID() }
 
 struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
   var item: Binding<Item?>
