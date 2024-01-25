@@ -119,38 +119,31 @@ extension View {
   ) -> some View {
     self.modifier(
       PopupViewModifier(
-        item: .init(
-          get: { if isPresented.wrappedValue { AnyIdentifiable() } else { nil } },
-          set: { newValue, transaction in
-            withTransaction(transaction) { isPresented.wrappedValue = newValue != nil }
-          }
-        ),
+        isPresented: isPresented,
         attachmentAnchor: attachmentAnchor,
         attachmentEdge: attachmentEdge,
         edgeOffset: edgeOffset,
         alignment: alignment,
         tapOutsideToDismiss: tapOutsideToDismiss,
-        content: { _ in content() }
+        content: content
       )
     )
   }
 }
 
-struct AnyIdentifiable: Identifiable { let id = UUID() }
-
-struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
-  var item: Binding<Item?>
+struct PopupViewModifier<PopupContent: View>: ViewModifier {
   let attachmentAnchor: PopupAttachmentAnchor
   let attachmentEdge: Edge
   let edgeOffset: CGFloat
   let alignment: Alignment?
   let tapOutsideToDismiss: Bool
-  @ViewBuilder let overlayContent: (Item) -> PopupContent
+  let onDismiss: () -> Void
+  @ViewBuilder let overlayContent: () -> PopupContent?
 
   @State var contentSize: CGSize = .zero
   @State var overlaySize: CGSize = .zero
 
-  init(
+  init<Item: Identifiable>(
     item: Binding<Item?>,
     attachmentAnchor: PopupAttachmentAnchor,
     attachmentEdge: Edge,
@@ -159,33 +152,49 @@ struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
     tapOutsideToDismiss: Bool,
     @ViewBuilder content: @escaping (Item) -> PopupContent
   ) {
-    self.item = item
     self.attachmentAnchor = attachmentAnchor
     self.attachmentEdge = attachmentEdge
     self.edgeOffset = edgeOffset
     self.alignment = alignment
     self.tapOutsideToDismiss = tapOutsideToDismiss
-    self.overlayContent = content
+    self.overlayContent = { item.wrappedValue.map { content($0) } }
+    self.onDismiss = { item.wrappedValue = nil }
+  }
+
+  init(
+    isPresented: Binding<Bool>,
+    attachmentAnchor: PopupAttachmentAnchor,
+    attachmentEdge: Edge,
+    edgeOffset: CGFloat,
+    alignment: Alignment?,
+    tapOutsideToDismiss: Bool,
+    @ViewBuilder content: @escaping () -> PopupContent
+  ) {
+    self.attachmentAnchor = attachmentAnchor
+    self.attachmentEdge = attachmentEdge
+    self.edgeOffset = edgeOffset
+    self.alignment = alignment
+    self.tapOutsideToDismiss = tapOutsideToDismiss
+    self.overlayContent = { isPresented.wrappedValue ? content() : nil }
+    self.onDismiss = { isPresented.wrappedValue = false }
   }
 
   func body(content: Content) -> some View {
     content.onGeometrySizeChange { self.contentSize = $0 }
       .overlay {
-        self.item.wrappedValue.map { itemValue in
-          Group {
-            self.overlayContent(itemValue).contentShape(.rect).fixedSize()
-              .applying {
-                if self.tapOutsideToDismiss {
-                  $0.onTapOutsideGesture { self.item.wrappedValue = nil }
-                } else {
-                  $0
-                }
+        Group {
+          self.overlayContent().contentShape(.rect).fixedSize()
+            .applying {
+              if self.tapOutsideToDismiss {
+                $0.onTapOutsideGesture { self.onDismiss() }
+              } else {
+                $0
               }
-              .onGeometrySizeChange { self.overlaySize = $0 }.position(self.overlayPosition)
-              .offset(self.overlayOffset)
-            Button("") { self.item.wrappedValue = nil }.keyboardShortcut(.escape, modifiers: [])
-              .hidden().accessibility(hidden: true)
-          }
+            }
+            .onGeometrySizeChange { self.overlaySize = $0 }.position(self.overlayPosition)
+            .offset(self.overlayOffset)
+          Button("") { self.onDismiss() }.keyboardShortcut(.escape, modifiers: []).hidden()
+            .accessibility(hidden: true)
         }
       }
   }
