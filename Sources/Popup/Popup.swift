@@ -184,7 +184,7 @@ struct PopupViewModifier<Item: Identifiable, PopupContent: View>: ViewModifier {
               .onGeometrySizeChange { self.overlaySize = $0 }.position(self.overlayPosition)
               .offset(self.overlayOffset)
             Button("") { self.item.wrappedValue = nil }.keyboardShortcut(.escape, modifiers: [])
-              .hidden().accessibility(hidden: true).keyboardShortcut("h", modifiers: [])
+              .hidden().accessibility(hidden: true)
           }
         }
       }
